@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tutor de programación</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f3f4f6; margin: 0; display: flex; justify-content: center; }
+    main { width: 100%; max-width: 720px; height: 100vh; display: flex; flex-direction: column; background: #fff; }
+    header { padding: 16px 20px; border-bottom: 1px solid #e5e7eb; }
+    header h1 { margin: 0; font-size: 1.2rem; }
+    header p { margin: 4px 0 0; color: #6b7280; font-size: .9rem; }
+    #chat { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; }
+    .usuario { align-self: flex-end; background: #2563eb; color: #fff; }
+    .tutor { align-self: flex-start; background: #f3f4f6; }
+    .fuentes { font-size: .8rem; color: #6b7280; margin-top: 6px; }
+    code { background: #e5e7eb; padding: 1px 5px; border-radius: 4px; }
+    pre { background: #1f2937; color: #f9fafb; padding: 10px; border-radius: 8px; overflow-x: auto; white-space: pre; }
+    pre code { background: none; padding: 0; }
+    #formulario { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid #e5e7eb; }
+    #pregunta { flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; }
+    #enviar { padding: 10px 18px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font-size: 1rem; cursor: pointer; }
+    #enviar:disabled { opacity: .6; cursor: wait; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Tutor de programación básica</h1>
+      <p>Pregúntame sobre variables, condicionales, bucles y funciones.</p>
+    </header>
+    <div id="chat"></div>
+    <form id="formulario">
+      <input id="pregunta" type="text" placeholder="Escribe tu duda..." maxlength="500" autocomplete="off" required>
+      <button id="enviar" type="submit">Enviar</button>
+    </form>
+  </main>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const formulario = document.getElementById("formulario");
+    const entrada = document.getElementById("pregunta");
+    const boton = document.getElementById("enviar");
+    const historial = [];
+
+    // Convierte `texto` en código en línea, de forma segura
+    function pintarLinea(contenedor, texto) {
+      texto.split("`").forEach((trozo, i) => {
+        if (i % 2 === 1) {
+          const code = document.createElement("code");
+          code.textContent = trozo;
+          contenedor.appendChild(code);
+        } else if (trozo) {
+          contenedor.appendChild(document.createTextNode(trozo));
+        }
+      });
+    }
+
+    // Muestra el texto de forma segura y convierte los bloques ``` en código
+    function pintarTexto(contenedor, texto) {
+      texto.split("```").forEach((parte, i) => {
+        if (i % 2 === 1) {
+          const pre = document.createElement("pre");
+          const code = document.createElement("code");
+          code.textContent = parte.replace(/^[a-zA-Z]*\n/, "").trimEnd();
+          pre.appendChild(code);
+          contenedor.appendChild(pre);
+        } else if (parte.trim()) {
+          pintarLinea(contenedor, parte.trim());
+        }
+      });
+    }
+
+    function agregarMensaje(rol, texto, fuentes) {
+      const div = document.createElement("div");
+      div.className = "msg " + rol;
+      pintarTexto(div, texto);
+      if (fuentes && fuentes.length) {
+        const f = document.createElement("div");
+        f.className = "fuentes";
+        f.textContent = "Fuentes: " + fuentes.join(", ");
+        div.appendChild(f);
+      }
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    agregarMensaje("tutor", "¡Hola! Soy tu tutor de programación. ¿Qué duda tienes hoy?");
+
+    formulario.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pregunta = entrada.value.trim();
+      if (!pregunta) return;
+
+      agregarMensaje("usuario", pregunta);
+      entrada.value = "";
+      boton.disabled = true;
+
+      try {
+        const respuesta = await fetch("/api/preguntar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pregunta, historial: historial.slice(-6) }),
+        });
+        const datos = await respuesta.json();
+        if (!respuesta.ok) throw new Error(datos.error || "Ocurrió un error.");
+
+        historial.push({ rol: "usuario", texto: pregunta }, { rol: "tutor", texto: datos.respuesta });
+        agregarMensaje("tutor", datos.respuesta, datos.fuentes);
+      } catch (error) {
+        agregarMensaje("tutor", "⚠️ " + error.message);
+      } finally {
+        boton.disabled = false;
+        entrada.focus();
+      }
+    });
+  </script>
+</body>
+</html>
